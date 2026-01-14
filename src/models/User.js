@@ -1,7 +1,7 @@
 /**
- * User Model - Represents a single user in our system
+ * User Model - Represents a user in our system
  * 
- * Demonstrates:
+ * Konsep yang diterapkan:
  * - Encapsulation: Data user dilindungi dengan getter/setter
  * - Validation: Memastikan data user valid
  * - Business Logic: Aturan bisnis terkait user
@@ -112,7 +112,7 @@ class User {
     }
 }
 
-// Export for use in other modules
+// Export untuk digunakan di file lain
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = User;
 } else {

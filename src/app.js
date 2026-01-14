@@ -1,408 +1,437 @@
 /**
- * Day 2 Complete Application - MVC Implementation
+ * Day 2 Main Application - MVC Implementation
  * 
- * This file demonstrates the complete Day 2 implementation with proper MVC architecture,
- * Repository pattern, enhanced models, and full integration of all components.
- * 
- * Demonstrates:
- * - Complete MVC architecture implementation
- * - Repository pattern integration
- * - Enhanced models with multi-user support
- * - Proper separation of concerns
- * - Event-driven architecture
- * - Error handling and user feedback
+ * Orchestrates semua komponen:
+ * - Storage Manager
+ * - Repositories
+ * - Controllers
+ * - Views
+ * - User Authentication
  */
+
+// Global application state
+let app = {
+    storage: null,
+    userRepository: null,
+    taskRepository: null,
+    userController: null,
+    taskController: null,
+    taskView: null,
+    currentUser: null
+};
 
 /**
- * Enhanced Task Service - Day 2 Implementation
- * Coordinates between repositories and provides business logic
+ * Initialize aplikasi
  */
-class TaskService {
-    constructor(taskRepository, userRepository) {
-        this.taskRepository = taskRepository;
-        this.userRepository = userRepository;
-        this.listeners = new Set();
-    }
+function initializeApp() {
+    console.log('🚀 Initializing Day 2 Task Management System...');
     
-    addListener(listener) {
-        this.listeners.add(listener);
-    }
-    
-    removeListener(listener) {
-        this.listeners.delete(listener);
-    }
-    
-    notifyListeners(eventType, data) {
-        this.listeners.forEach(listener => {
-            try {
-                listener(eventType, data);
-            } catch (error) {
-                console.error('Error in task service listener:', error);
-            }
-        });
-    }
-    
-    async createTask(taskData) {
-        try {
-            // Validate user exists
-            const user = await this.userRepository.findById(taskData.userId);
-            if (!user) {
-                throw new Error('User not found');
-            }
-            
-            // Create task instance
-            const task = new Task(taskData.title, taskData.description, taskData.userId, taskData);
-            
-            // Save through repository
-            const savedTask = await this.taskRepository.create(task);
-            
-            this.notifyListeners('taskCreated', savedTask);
-            return savedTask;
-        } catch (error) {
-            this.notifyListeners('error', { operation: 'createTask', error: error.message });
-            throw error;
-        }
-    }
-    
-    async getTaskById(taskId) {
-        return await this.taskRepository.findById(taskId);
-    }
-    
-    async updateTask(taskId, updates) {
-        try {
-            const updatedTask = await this.taskRepository.update(taskId, updates);
-            if (updatedTask) {
-                this.notifyListeners('taskUpdated', updatedTask);
-            }
-            return updatedTask;
-        } catch (error) {
-            this.notifyListeners('error', { operation: 'updateTask', error: error.message });
-            throw error;
-        }
-    }
-    
-    async deleteTask(taskId) {
-        try {
-            const success = await this.taskRepository.delete(taskId);
-            if (success) {
-                this.notifyListeners('taskDeleted', { taskId });
-            }
-            return success;
-        } catch (error) {
-            this.notifyListeners('error', { operation: 'deleteTask', error: error.message });
-            throw error;
-        }
-    }
-    
-    async getTasksForUser(userId) {
-        return await this.taskRepository.findAll({ userId });
-    }
-    
-    async getPendingTasks(userId) {
-        return await this.taskRepository.findAll({ userId, completed: false });
-    }
-    
-    async getCompletedTasks(userId) {
-        return await this.taskRepository.findAll({ userId, completed: true });
-    }
-    
-    async getOverdueTasks(userId) {
-        const allTasks = await this.taskRepository.findAll({ userId });
-        return allTasks.filter(task => task.isOverdue);
-    }
-    
-    async getTasksByPriority(userId, priority) {
-        return await this.taskRepository.findAll({ userId, priority });
-    }
-    
-    async getTasksByCategory(userId, category) {
-        return await this.taskRepository.findAll({ userId, category });
-    }
-    
-    async getTasksAssignedToUser(userId) {
-        return await this.taskRepository.findAll({ assignedTo: userId });
-    }
-    
-    async searchTasks(userId, query) {
-        const userTasks = await this.taskRepository.findAll({ userId });
-        return userTasks.filter(task => 
-            task.title.toLowerCase().includes(query.toLowerCase()) ||
-            task.description.toLowerCase().includes(query.toLowerCase()) ||
-            task.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase()))
-        );
-    }
-    
-    async getTaskStats(userId) {
-        return await this.taskRepository.getStatistics(userId);
-    }
-}
-
-/**
- * Enhanced User Service - Day 2 Implementation
- */
-class UserService {
-    constructor(userRepository) {
-        this.userRepository = userRepository;
-        this.listeners = new Set();
-    }
-    
-    addListener(listener) {
-        this.listeners.add(listener);
-    }
-    
-    removeListener(listener) {
-        this.listeners.delete(listener);
-    }
-    
-    notifyListeners(eventType, data) {
-        this.listeners.forEach(listener => {
-            try {
-                listener(eventType, data);
-            } catch (error) {
-                console.error('Error in user service listener:', error);
-            }
-        });
-    }
-    
-    async createUser(userData) {
-        try {
-            const user = new User(userData.username, userData.email, userData);
-            const savedUser = await this.userRepository.create(user);
-            
-            this.notifyListeners('userCreated', savedUser);
-            return savedUser;
-        } catch (error) {
-            this.notifyListeners('error', { operation: 'createUser', error: error.message });
-            throw error;
-        }
-    }
-    
-    async getUserById(userId) {
-        return await this.userRepository.findById(userId);
-    }
-    
-    async updateUser(userId, updates) {
-        try {
-            const updatedUser = await this.userRepository.update(userId, updates);
-            if (updatedUser) {
-                this.notifyListeners('userUpdated', updatedUser);
-            }
-            return updatedUser;
-        } catch (error) {
-            this.notifyListeners('error', { operation: 'updateUser', error: error.message });
-            throw error;
-        }
-    }
-    
-    async getAllUsers() {
-        return await this.userRepository.findAll();
-    }
-    
-    async authenticateUser(usernameOrEmail, password) {
-        return await this.userRepository.authenticate(usernameOrEmail, password);
-    }
-    
-    async logoutUser(userId) {
-        const user = await this.userRepository.findById(userId);
-        if (user) {
-            user.logout();
-            await this.userRepository.update(userId, user.toJSON());
-        }
-    }
-}
-
-/**
- * Day 2 Task Management Application
- * Orchestrates all MVC components and manages application lifecycle
- */
-class Day2TaskManagementApp {
-    constructor() {
-        this.storageManager = null;
-        this.taskRepository = null;
-        this.userRepository = null;
-        this.taskService = null;
-        this.userService = null;
-        this.taskController = null;
-        this.taskView = null;
-        this.currentUser = null;
-    }
-    
-    /**
-     * Initialize the application
-     */
-    async initialize() {
-        try {
-            console.log('🚀 Initializing Day 2 Task Management Application...');
-            
-            // Initialize storage layer
-            this.storageManager = new StorageManager('taskManagementApp_day2');
-            
-            // Initialize repositories
-            this.taskRepository = new TaskRepository(this.storageManager);
-            this.userRepository = new UserRepository(this.storageManager);
-            
-            // Initialize services
-            this.taskService = new TaskService(this.taskRepository, this.userRepository);
-            this.userService = new UserService(this.userRepository);
-            
-            // Initialize views
-            this.taskView = new TaskView('app');
-            
-            // Initialize controllers
-            this.taskController = new TaskController(this.taskService, this.userService, this.taskView);
-            
-            // Set up cross-component communication
-            this.setupCommunication();
-            
-            // Load or create default user
-            await this.initializeUser();
-            
-            console.log('✅ Day 2 Application initialized successfully!');
-        } catch (error) {
-            console.error('❌ Failed to initialize Day 2 application:', error);
-            throw error;
-        }
-    }
-    
-    /**
-     * Set up communication between components
-     */
-    setupCommunication() {
-        // Listen for task controller events
-        this.taskController.addListener((eventType, data) => {
-            console.log(`Task Controller Event: ${eventType}`, data);
-        });
-        
-        // Listen for service events
-        this.taskService.addListener((eventType, data) => {
-            console.log(`Task Service Event: ${eventType}`, data);
-        });
-        
-        this.userService.addListener((eventType, data) => {
-            console.log(`User Service Event: ${eventType}`, data);
-        });
-    }
-    
-    /**
-     * Initialize user (create default user if none exists)
-     */
-    async initializeUser() {
-        try {
-            // Try to load existing users
-            const users = await this.userService.getAllUsers();
-            
-            if (users.length === 0) {
-                // Create default user
-                console.log('Creating default user...');
-                this.currentUser = await this.userService.createUser({
-                    username: 'demo_user',
-                    email: 'demo@example.com',
-                    displayName: 'Demo User',
-                    firstName: 'Demo',
-                    lastName: 'User'
-                });
-            } else {
-                // Use first user as current user
-                this.currentUser = users[0];
-            }
-            
-            // Initialize task controller with current user
-            await this.taskController.initialize(this.currentUser.id);
-            
-        } catch (error) {
-            console.error('Failed to initialize user:', error);
-            throw error;
-        }
-    }
-    
-    /**
-     * Get current user
-     */
-    getCurrentUser() {
-        return this.currentUser;
-    }
-    
-    /**
-     * Switch to a different user
-     */
-    async switchUser(userId) {
-        try {
-            const user = await this.userService.getUserById(userId);
-            if (!user) {
-                throw new Error('User not found');
-            }
-            
-            this.currentUser = user;
-            await this.taskController.setCurrentUser(userId);
-            
-            console.log(`Switched to user: ${user.displayName}`);
-        } catch (error) {
-            console.error('Failed to switch user:', error);
-            throw error;
-        }
-    }
-    
-    /**
-     * Create a new user
-     */
-    async createUser(userData) {
-        return await this.userService.createUser(userData);
-    }
-    
-    /**
-     * Get application statistics
-     */
-    async getAppStats() {
-        const taskStats = await this.taskService.getTaskStats();
-        const userCount = (await this.userService.getAllUsers()).length;
-        
-        return {
-            users: userCount,
-            tasks: taskStats,
-            storage: this.storageManager.getStorageInfo()
-        };
-    }
-}
-
-// Initialize application when DOM is ready
-document.addEventListener('DOMContentLoaded', async () => {
     try {
-        // Create app container if it doesn't exist
-        let appContainer = document.getElementById('app');
-        if (!appContainer) {
-            appContainer = document.createElement('div');
-            appContainer.id = 'app';
-            document.body.appendChild(appContainer);
-        }
+        // Initialize storage manager
+        app.storage = new EnhancedStorageManager('taskAppDay2', '2.0');
+        console.log('✅ Storage manager initialized');
         
-        const app = new Day2TaskManagementApp();
-        await app.initialize();
+        // Initialize repositories
+        app.userRepository = new UserRepository(app.storage);
+        app.taskRepository = new TaskRepository(app.storage);
+        console.log('✅ Repositories initialized');
         
-        // Make app globally available for debugging
-        window.day2App = app;
+        // Initialize controllers
+        app.userController = new UserController(app.userRepository);
+        app.taskController = new TaskController(app.taskRepository, app.userRepository);
+        console.log('✅ Controllers initialized');
         
-        console.log('🎉 Day 2 Task Management Application is ready!');
+        // Initialize view
+        app.taskView = new TaskView(app.taskController, app.userController);
+        console.log('✅ Views initialized');
+        
+        // Setup authentication event listeners
+        setupAuthEventListeners();
+        
+        // Create demo user jika belum ada
+        createDemoUserIfNeeded();
+        
+        // Show login section
+        showLoginSection();
+        
+        console.log('✅ Day 2 Application initialized successfully!');
         
     } catch (error) {
-        console.error('Failed to start Day 2 application:', error);
-        document.body.innerHTML = `
-            <div class="error-container">
-                <h1>Application Error</h1>
-                <p>Failed to initialize the Day 2 application. Please refresh the page and try again.</p>
-                <details>
-                    <summary>Error Details</summary>
-                    <pre>${error.message}</pre>
-                </details>
-            </div>
-        `;
+        console.error('❌ Failed to initialize application:', error);
+        showMessage('Gagal menginisialisasi aplikasi: ' + error.message, 'error');
     }
+}
+
+/**
+ * Setup authentication event listeners
+ */
+function setupAuthEventListeners() {
+    // Login button
+    const loginBtn = document.getElementById('loginBtn');
+    if (loginBtn) {
+        loginBtn.addEventListener('click', handleLogin);
+    }
+    
+    // Register button
+    const registerBtn = document.getElementById('registerBtn');
+    if (registerBtn) {
+        registerBtn.addEventListener('click', showRegisterModal);
+    }
+    
+    // Logout button
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+    }
+    
+    // Username input (Enter key)
+    const usernameInput = document.getElementById('usernameInput');
+    if (usernameInput) {
+        usernameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleLogin();
+            }
+        });
+    }
+    
+    // Register form
+    const registerForm = document.getElementById('registerForm');
+    if (registerForm) {
+        registerForm.addEventListener('submit', handleRegister);
+    }
+    
+    // Register modal close
+    const closeRegisterModal = document.getElementById('closeRegisterModal');
+    const cancelRegister = document.getElementById('cancelRegister');
+    if (closeRegisterModal) {
+        closeRegisterModal.addEventListener('click', hideRegisterModal);
+    }
+    if (cancelRegister) {
+        cancelRegister.addEventListener('click', hideRegisterModal);
+    }
+    
+    // Quick action buttons
+    const showOverdueBtn = document.getElementById('showOverdueBtn');
+    const showDueSoonBtn = document.getElementById('showDueSoonBtn');
+    const exportDataBtn = document.getElementById('exportDataBtn');
+    const refreshTasks = document.getElementById('refreshTasks');
+    
+    if (showOverdueBtn) {
+        showOverdueBtn.addEventListener('click', showOverdueTasks);
+    }
+    if (showDueSoonBtn) {
+        showDueSoonBtn.addEventListener('click', showDueSoonTasks);
+    }
+    if (exportDataBtn) {
+        exportDataBtn.addEventListener('click', exportAppData);
+    }
+    if (refreshTasks) {
+        refreshTasks.addEventListener('click', () => app.taskView.refresh());
+    }
+}
+
+/**
+ * Handle user login
+ */
+function handleLogin() {
+    const usernameInput = document.getElementById('usernameInput');
+    const username = usernameInput.value.trim();
+    
+    if (!username) {
+        showMessage('Username wajib diisi', 'error');
+        return;
+    }
+    
+    const response = app.userController.login(username);
+    
+    if (response.success) {
+        app.currentUser = response.data;
+        
+        // Set current user di task controller
+        app.taskController.setCurrentUser(app.currentUser.id);
+        
+        // Show main content
+        showMainContent();
+        
+        // Load user list untuk assign dropdown
+        loadUserListForAssign();
+        
+        // Refresh views
+        app.taskView.refresh();
+        
+        showMessage(response.message, 'success');
+    } else {
+        showMessage(response.error, 'error');
+    }
+}
+
+/**
+ * Handle user logout
+ */
+function handleLogout() {
+    const response = app.userController.logout();
+    
+    app.currentUser = null;
+    
+    // Hide main content
+    hideMainContent();
+    
+    // Show login section
+    showLoginSection();
+    
+    showMessage(response.message, 'info');
+}
+
+/**
+ * Show register modal
+ */
+function showRegisterModal() {
+    const modal = document.getElementById('registerModal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+/**
+ * Hide register modal
+ */
+function hideRegisterModal() {
+    const modal = document.getElementById('registerModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    
+    // Reset form
+    const form = document.getElementById('registerForm');
+    if (form) {
+        form.reset();
+    }
+}
+
+/**
+ * Handle user registration
+ */
+function handleRegister(event) {
+    event.preventDefault();
+    
+    const formData = new FormData(event.target);
+    const userData = {
+        username: formData.get('username')?.trim(),
+        email: formData.get('email')?.trim(),
+        fullName: formData.get('fullName')?.trim()
+    };
+    
+    const response = app.userController.register(userData);
+    
+    if (response.success) {
+        hideRegisterModal();
+        showMessage(response.message, 'success');
+        
+        // Auto-fill username untuk login
+        const usernameInput = document.getElementById('usernameInput');
+        if (usernameInput) {
+            usernameInput.value = userData.username;
+        }
+    } else {
+        showMessage(response.error, 'error');
+    }
+}
+
+/**
+ * Show login section
+ */
+function showLoginSection() {
+    const loginSection = document.getElementById('loginSection');
+    const userInfo = document.getElementById('userInfo');
+    const mainContent = document.getElementById('mainContent');
+    
+    if (loginSection) loginSection.style.display = 'flex';
+    if (userInfo) userInfo.style.display = 'none';
+    if (mainContent) mainContent.style.display = 'none';
+    
+    // Clear username input
+    const usernameInput = document.getElementById('usernameInput');
+    if (usernameInput) {
+        usernameInput.value = '';
+        usernameInput.focus();
+    }
+}
+
+/**
+ * Show main content
+ */
+function showMainContent() {
+    const loginSection = document.getElementById('loginSection');
+    const userInfo = document.getElementById('userInfo');
+    const mainContent = document.getElementById('mainContent');
+    const welcomeMessage = document.getElementById('welcomeMessage');
+    
+    if (loginSection) loginSection.style.display = 'none';
+    if (userInfo) userInfo.style.display = 'flex';
+    if (mainContent) mainContent.style.display = 'block';
+    
+    if (welcomeMessage && app.currentUser) {
+        welcomeMessage.textContent = `Selamat datang, ${app.currentUser.fullName || app.currentUser.username}!`;
+    }
+}
+
+/**
+ * Hide main content
+ */
+function hideMainContent() {
+    const mainContent = document.getElementById('mainContent');
+    if (mainContent) {
+        mainContent.style.display = 'none';
+    }
+}
+
+/**
+ * Load user list untuk assign dropdown
+ */
+function loadUserListForAssign() {
+    const response = app.userController.getAllUsers();
+    
+    if (response.success) {
+        const assigneeSelect = document.getElementById('taskAssignee');
+        if (assigneeSelect) {
+            // Clear existing options except "self"
+            assigneeSelect.innerHTML = '<option value="self">Diri Sendiri</option>';
+            
+            // Add other users
+            response.data.forEach(user => {
+                if (user.id !== app.currentUser.id) {
+                    const option = document.createElement('option');
+                    option.value = user.id;
+                    option.textContent = user.fullName || user.username;
+                    assigneeSelect.appendChild(option);
+                }
+            });
+        }
+    }
+}
+
+/**
+ * Show overdue tasks
+ */
+function showOverdueTasks() {
+    const response = app.taskController.getOverdueTasks();
+    
+    if (response.success) {
+        if (response.count === 0) {
+            showMessage('Tidak ada task yang overdue', 'info');
+        } else {
+            showMessage(`Ditemukan ${response.count} task yang overdue`, 'warning');
+            // Filter view untuk menampilkan overdue tasks
+            // Implementasi ini bisa diperbaiki dengan menambah filter khusus
+        }
+    } else {
+        showMessage(response.error, 'error');
+    }
+}
+
+/**
+ * Show tasks due soon
+ */
+function showDueSoonTasks() {
+    const response = app.taskController.getTasksDueSoon(3);
+    
+    if (response.success) {
+        if (response.count === 0) {
+            showMessage('Tidak ada task yang akan due dalam 3 hari', 'info');
+        } else {
+            showMessage(`Ditemukan ${response.count} task yang akan due dalam 3 hari`, 'warning');
+        }
+    } else {
+        showMessage(response.error, 'error');
+    }
+}
+
+/**
+ * Export app data
+ */
+function exportAppData() {
+    const exportData = app.storage.exportData();
+    
+    if (exportData) {
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(dataBlob);
+        link.download = `task-app-backup-${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        
+        showMessage('Data berhasil diekspor', 'success');
+    } else {
+        showMessage('Gagal mengekspor data', 'error');
+    }
+}
+
+/**
+ * Create demo user jika belum ada
+ */
+function createDemoUserIfNeeded() {
+    const users = app.userRepository.findAll();
+    
+    if (users.length === 0) {
+        try {
+            // Buat demo user
+            app.userRepository.create({
+                username: 'demo',
+                email: 'demo@example.com',
+                fullName: 'Demo User'
+            });
+            
+            app.userRepository.create({
+                username: 'john',
+                email: 'john@example.com',
+                fullName: 'John Doe'
+            });
+            
+            console.log('✅ Demo users created');
+        } catch (error) {
+            console.error('Failed to create demo users:', error);
+        }
+    }
+}
+
+/**
+ * Show message to user
+ */
+function showMessage(message, type = 'info') {
+    if (app.taskView) {
+        app.taskView.showMessage(message, type);
+    } else {
+        console.log(`${type.toUpperCase()}: ${message}`);
+    }
+}
+
+/**
+ * Handle errors globally
+ */
+window.addEventListener('error', (event) => {
+    console.error('Global error:', event.error);
+    showMessage('Terjadi kesalahan pada aplikasi', 'error');
 });
 
-// Export for use in other modules
+/**
+ * Handle unhandled promise rejections
+ */
+window.addEventListener('unhandledrejection', (event) => {
+    console.error('Unhandled promise rejection:', event.reason);
+    showMessage('Terjadi kesalahan pada aplikasi', 'error');
+});
+
+// Initialize app when DOM is ready
+document.addEventListener('DOMContentLoaded', initializeApp);
+
+// Export untuk testing (jika diperlukan)
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { Day2TaskManagementApp, TaskService, UserService };
-} else {
-    window.Day2TaskManagementApp = Day2TaskManagementApp;
-    window.TaskService = TaskService;
-    window.UserService = UserService;
+    module.exports = {
+        initializeApp,
+        handleLogin,
+        handleLogout,
+        handleRegister,
+        app
+    };
 }
