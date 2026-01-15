@@ -9,6 +9,7 @@
  * - User Authentication
  */
 
+
 // Global application state
 let app = {
     storage: null,
@@ -23,6 +24,7 @@ let app = {
 /**
  * Initialize aplikasi
  */
+
 function initializeApp() {
     console.log('🚀 Initializing Day 2 Task Management System...');
     
@@ -421,6 +423,8 @@ window.addEventListener('unhandledrejection', (event) => {
     console.error('Unhandled promise rejection:', event.reason);
     showMessage('Terjadi kesalahan pada aplikasi', 'error');
 });
+
+
 
 // Initialize app when DOM is ready
 document.addEventListener('DOMContentLoaded', initializeApp);

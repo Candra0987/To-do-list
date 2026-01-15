@@ -6,6 +6,7 @@
  * - Validation: Memastikan data user valid
  * - Business Logic: Aturan bisnis terkait user
  */
+
 class User {
     constructor(username, email, fullName) {
         // Validasi input - pastikan data yang masuk benar

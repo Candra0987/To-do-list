@@ -156,3 +156,4 @@ if (typeof module !== 'undefined' && module.exports) {
 } else {
     window.StorageManager = StorageManager;
 }
+
