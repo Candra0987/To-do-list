@@ -44,6 +44,7 @@ class EnhancedStorageManager {
             
             return true;
         } catch (error) {
+           console.trace("Saving metadata");
             console.error(`Failed to save ${entity}:`, error);
             return false;
         }

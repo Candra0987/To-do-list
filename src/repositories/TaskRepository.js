@@ -7,7 +7,15 @@
  * - User-specific operations
  * - Statistics dan reporting
  */
-//const EnhancedTask = require('../models/EnhancedTask');
+if(typeof require !== 'undefined'&& typeof module !== 'undefined') {
+
+    if (typeof require !== 'undefined') {
+       
+
+ EnhancedTask = require('../models/EnhancedTask');
+
+    }
+}
 class TaskRepository {
     constructor(storageManager) {
         this.storage = storageManager;
